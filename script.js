@@ -1,51 +1,68 @@
-// ===================================
-// STATE MANAGEMENT
-// ===================================
+
 const state = {
     currentWord: null,
     searchHistory: [],
+    favorites: [],
+    wordOfTheDay: null,
+    trendingWords: ['serendipity', 'ephemeral', 'melancholy', 'eloquent', 'luminous', 'resilience'],
     isLoading: false,
-    isDarkMode: false
+    isDarkMode: false,
+    isListening: false
 };
 
-// ===================================
-// DOM ELEMENTS
-// ===================================
+
 const elements = {
     searchInput: document.getElementById('searchInput'),
     searchBtn: document.getElementById('searchBtn'),
     clearBtn: document.getElementById('clearBtn'),
+    voiceBtn: document.getElementById('voiceBtn'),
     themeToggle: document.getElementById('themeToggle'),
     historyBtn: document.getElementById('historyBtn'),
+    favoritesBtn: document.getElementById('favoritesBtn'),
     historyDropdown: document.getElementById('historyDropdown'),
+    favoritesDropdown: document.getElementById('favoritesDropdown'),
     historyList: document.getElementById('historyList'),
+    favoritesList: document.getElementById('favoritesList'),
     clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+    clearFavoritesBtn: document.getElementById('clearFavoritesBtn'),
+    favoritesBadge: document.getElementById('favoritesBadge'),
+    wordCount: document.getElementById('wordCount'),
+    wotdBanner: document.getElementById('wotdBanner'),
+    wotdWord: document.getElementById('wotdWord'),
+    wotdExplore: document.getElementById('wotdExplore'),
+    trendingTags: document.getElementById('trendingTags'),
     loadingState: document.getElementById('loadingState'),
     errorState: document.getElementById('errorState'),
     resultsContent: document.getElementById('resultsContent'),
     wordTitle: document.getElementById('wordTitle'),
     phoneticSection: document.getElementById('phoneticSection'),
     meaningsSection: document.getElementById('meaningsSection'),
+    wordStatsCard: document.getElementById('wordStatsCard'),
+    wordGamesSection: document.getElementById('wordGamesSection'),
     sourceSection: document.getElementById('sourceSection'),
     errorTitle: document.getElementById('errorTitle'),
-    errorMessage: document.getElementById('errorMessage')
+    errorMessage: document.getElementById('errorMessage'),
+    favoriteStarBtn: document.getElementById('favoriteStarBtn'),
+    scrambledWord: document.getElementById('scrambledWord'),
+    revealScrambleBtn: document.getElementById('revealScrambleBtn'),
+    rhymeList: document.getElementById('rhymeList')
 };
 
-// ===================================
-// INITIALIZATION
-// ===================================
+
 function init() {
     loadThemePreference();
     loadSearchHistory();
+    loadFavorites();
+    loadWordOfTheDay();
+    renderTrendingWords();
+    updateStats();
     attachEventListeners();
     
-    // Focus on search input on page load
+    
     elements.searchInput.focus();
 }
 
-// ===================================
-// THEME MANAGEMENT
-// ===================================
+
 function loadThemePreference() {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
@@ -66,9 +83,7 @@ function toggleTheme() {
     }
 }
 
-// ===================================
-// SEARCH HISTORY MANAGEMENT
-// ===================================
+
 function loadSearchHistory() {
     const history = localStorage.getItem('searchHistory');
     if (history) {
@@ -81,13 +96,13 @@ function saveSearchHistory() {
 }
 
 function addToHistory(word) {
-    // Remove if already exists
+    
     state.searchHistory = state.searchHistory.filter(item => item !== word);
     
-    // Add to beginning
+    
     state.searchHistory.unshift(word);
     
-    // Keep only last 20 searches
+    
     if (state.searchHistory.length > 20) {
         state.searchHistory = state.searchHistory.slice(0, 20);
     }
@@ -123,7 +138,7 @@ function renderHistory() {
         `)
         .join('');
     
-    // Attach click handlers to history items
+    
     document.querySelectorAll('.history-item').forEach(item => {
         item.addEventListener('click', () => {
             const word = item.getAttribute('data-word');
@@ -143,9 +158,177 @@ function closeHistoryDropdown() {
     elements.historyDropdown.classList.remove('show');
 }
 
-// ===================================
-// API FUNCTIONS
-// ===================================
+
+function loadFavorites() {
+    const favorites = localStorage.getItem('favorites');
+    if (favorites) {
+        state.favorites = JSON.parse(favorites);
+    }
+}
+
+function saveFavorites() {
+    localStorage.setItem('favorites', JSON.stringify(state.favorites));
+}
+
+function toggleFavorite(word) {
+    const index = state.favorites.indexOf(word);
+    
+    if (index > -1) {
+       
+        state.favorites.splice(index, 1);
+    } else {
+       
+        state.favorites.push(word);
+    }
+    
+    saveFavorites();
+    updateFavoriteButton();
+    updateStats();
+}
+
+function clearFavorites() {
+    state.favorites = [];
+    localStorage.removeItem('favorites');
+    renderFavorites();
+    updateStats();
+    updateFavoriteButton();
+}
+
+function renderFavorites() {
+    if (state.favorites.length === 0) {
+        elements.favoritesList.innerHTML = `
+            <div class="history-empty">
+                <p>No favorite words yet</p>
+            </div>
+        `;
+        return;
+    }
+    
+    elements.favoritesList.innerHTML = state.favorites
+        .map(word => `
+            <div class="history-item" data-word="${word}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                <span>${word}</span>
+            </div>
+        `)
+        .join('');
+    
+   
+    document.querySelectorAll('#favoritesList .history-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const word = item.getAttribute('data-word');
+            elements.searchInput.value = word;
+            closeFavoritesDropdown();
+            searchWord();
+        });
+    });
+}
+
+function toggleFavoritesDropdown() {
+    elements.favoritesDropdown.classList.toggle('show');
+    elements.historyDropdown.classList.remove('show');
+    renderFavorites();
+}
+
+function closeFavoritesDropdown() {
+    elements.favoritesDropdown.classList.remove('show');
+}
+
+function updateFavoriteButton() {
+    if (state.currentWord && state.favorites.includes(state.currentWord.word)) {
+        elements.favoriteStarBtn.classList.add('active');
+    } else {
+        elements.favoriteStarBtn.classList.remove('active');
+    }
+}
+
+
+function loadWordOfTheDay() {
+    
+    const savedWotd = localStorage.getItem('wotd');
+    const savedDate = localStorage.getItem('wotdDate');
+    const today = new Date().toDateString();
+    
+    if (savedWotd && savedDate === today) {
+        state.wordOfTheDay = savedWotd;
+        elements.wotdWord.textContent = savedWotd;
+    } else {
+        
+        const words = ['serendipity', 'ephemeral', 'luminous', 'eloquent', 'melancholy', 
+                       'resilience', 'pristine', 'ethereal', 'sonorous', 'ebullient'];
+        const randomWord = words[Math.floor(Math.random() * words.length)];
+        state.wordOfTheDay = randomWord;
+        elements.wotdWord.textContent = randomWord;
+        localStorage.setItem('wotd', randomWord);
+        localStorage.setItem('wotdDate', today);
+    }
+}
+
+
+function renderTrendingWords() {
+    elements.trendingTags.innerHTML = state.trendingWords
+        .map(word => `<span class="trending-tag" onclick="searchFromTag('${word}')">${word}</span>`)
+        .join('');
+}
+
+
+function updateStats() {
+    // Update word count
+    elements.wordCount.textContent = state.searchHistory.length;
+    
+    // Update favorites badge
+    if (state.favorites.length > 0) {
+        elements.favoritesBadge.textContent = state.favorites.length;
+        elements.favoritesBadge.classList.add('show');
+    } else {
+        elements.favoritesBadge.classList.remove('show');
+    }
+}
+
+
+function startVoiceSearch() {
+   
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Voice search is not supported in your browser. Please try Chrome, Edge, or Safari.');
+        return;
+    }
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => {
+        state.isListening = true;
+        elements.voiceBtn.classList.add('listening');
+    };
+    
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        elements.searchInput.value = transcript;
+        elements.clearBtn.classList.add('show');
+        searchWord();
+    };
+    
+    recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        state.isListening = false;
+        elements.voiceBtn.classList.remove('listening');
+    };
+    
+    recognition.onend = () => {
+        state.isListening = false;
+        elements.voiceBtn.classList.remove('listening');
+    };
+    
+    recognition.start();
+}
+
+
 async function fetchWordData(word) {
     const apiUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`;
     
@@ -164,7 +347,7 @@ async function fetchWordData(word) {
         return data[0]; // Return first result
         
     } catch (error) {
-        // Check for network errors
+        
         if (error.message === 'Failed to fetch' || !navigator.onLine) {
             throw new Error('NO_INTERNET');
         }
@@ -172,9 +355,7 @@ async function fetchWordData(word) {
     }
 }
 
-// ===================================
-// UI STATE FUNCTIONS
-// ===================================
+
 function showLoadingState() {
     state.isLoading = true;
     elements.loadingState.classList.add('show');
@@ -188,7 +369,7 @@ function showErrorState(errorType) {
     elements.errorState.classList.add('show');
     elements.resultsContent.classList.remove('show');
     
-    // Set error message based on type
+   
     switch (errorType) {
         case 'WORD_NOT_FOUND':
             elements.errorTitle.textContent = 'Word Not Found';
@@ -215,26 +396,92 @@ function showResultsState() {
     elements.resultsContent.classList.add('show');
 }
 
-// ===================================
-// RENDER FUNCTIONS
-// ===================================
+
+function scrambleWord(word) {
+    const arr = word.split('');
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.join('');
+}
+
+function generateRhymes(word) {
+    
+    const endings = {
+        'tion': ['action', 'motion', 'potion', 'notion'],
+        'ing': ['ring', 'sing', 'bring', 'thing'],
+        'ight': ['light', 'bright', 'sight', 'fight'],
+        'ound': ['sound', 'ground', 'found', 'round'],
+        'ess': ['dress', 'press', 'bless', 'stress'],
+        'ay': ['day', 'way', 'say', 'play'],
+        'ow': ['grow', 'show', 'know', 'flow']
+    };
+    
+    
+    for (const [ending, rhymes] of Object.entries(endings)) {
+        if (word.toLowerCase().endsWith(ending)) {
+            return rhymes.filter(r => r !== word.toLowerCase()).slice(0, 6);
+        }
+    }
+    
+    
+    return ['blue', 'true', 'new', 'through'].slice(0, 4);
+}
+
+function renderWordGames() {
+    const word = state.currentWord.word;
+    
+    
+    const scrambled = scrambleWord(word);
+    elements.scrambledWord.textContent = scrambled;
+    elements.revealScrambleBtn.textContent = 'Reveal Answer';
+    elements.revealScrambleBtn.disabled = false;
+    
+    
+    const rhymes = generateRhymes(word);
+    if (rhymes.length > 0) {
+        elements.rhymeList.innerHTML = rhymes
+            .map(rhyme => `<span class="rhyme-tag" onclick="searchFromTag('${rhyme}')">${rhyme}</span>`)
+            .join('');
+    } else {
+        elements.rhymeList.innerHTML = '<p class="game-description">No common rhymes found</p>';
+    }
+}
+
+function revealScramble() {
+    elements.scrambledWord.textContent = state.currentWord.word;
+    elements.revealScrambleBtn.textContent = 'Revealed!';
+    elements.revealScrambleBtn.disabled = true;
+}
+
+
 function renderWordData(data) {
-    // Render word title
+    
     elements.wordTitle.textContent = data.word;
     
-    // Render phonetics
+    
+    updateFavoriteButton();
+    
+    
     renderPhonetics(data.phonetics);
     
-    // Render meanings
+   
+    renderWordStats(data);
+    
+    
     renderMeanings(data.meanings);
     
-    // Render source
+    
+    renderWordGames();
+    
+    
     renderSource(data.sourceUrls);
     
-    // Show results
+    
     showResultsState();
     
-    // Scroll to results
+    
     elements.resultsContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -244,19 +491,19 @@ function renderPhonetics(phonetics) {
         return;
     }
     
-    // Find phonetic with text and audio
+    
     let phoneticWithAudio = phonetics.find(p => p.text && p.audio);
     let phoneticWithText = phonetics.find(p => p.text);
     let phoneticToUse = phoneticWithAudio || phoneticWithText || phonetics[0];
     
     let html = '';
     
-    // Add phonetic text
+   
     if (phoneticToUse && phoneticToUse.text) {
         html += `<span class="phonetic-text">${phoneticToUse.text}</span>`;
     }
     
-    // Add audio button
+    
     if (phoneticWithAudio && phoneticWithAudio.audio) {
         html += `
             <button class="audio-btn" onclick="playAudio('${phoneticWithAudio.audio}')" title="Listen to pronunciation">
@@ -269,6 +516,37 @@ function renderPhonetics(phonetics) {
     }
     
     elements.phoneticSection.innerHTML = html;
+}
+
+function renderWordStats(data) {
+   
+    const totalMeanings = data.meanings.length;
+    const totalDefinitions = data.meanings.reduce((sum, m) => sum + m.definitions.length, 0);
+    const partsOfSpeech = [...new Set(data.meanings.map(m => m.partOfSpeech))].length;
+    
+    const html = `
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value">${totalMeanings}</div>
+                <div class="stat-label">Meanings</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">${totalDefinitions}</div>
+                <div class="stat-label">Definitions</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">${partsOfSpeech}</div>
+                <div class="stat-label">Parts</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">${data.word.length}</div>
+                <div class="stat-label">Letters</div>
+            </div>
+        </div>
+    `;
+    
+    elements.wordStatsCard.innerHTML = html;
+    elements.wordStatsCard.classList.add('show');
 }
 
 function renderMeanings(meanings) {
@@ -284,7 +562,7 @@ function renderMeanings(meanings) {
                 <ol class="definition-list">
         `;
         
-        // Add definitions
+       
         meaning.definitions.slice(0, 3).forEach((def, index) => {
             card += `
                 <li class="definition-item">
@@ -299,7 +577,7 @@ function renderMeanings(meanings) {
         
         card += `</ol>`;
         
-        // Add synonyms
+    
         if (meaning.synonyms && meaning.synonyms.length > 0) {
             card += `
                 <div class="synonyms-section">
@@ -313,7 +591,7 @@ function renderMeanings(meanings) {
             `;
         }
         
-        // Add antonyms
+       
         if (meaning.antonyms && meaning.antonyms.length > 0) {
             card += `
                 <div class="antonyms-section">
@@ -348,43 +626,42 @@ function renderSource(sourceUrls) {
     `;
 }
 
-// ===================================
-// SEARCH FUNCTION
-// ===================================
+
 async function searchWord() {
     const query = elements.searchInput.value.trim();
     
-    // Validate input
+    
     if (!query) {
         showErrorState('EMPTY_SEARCH');
         return;
     }
     
-    // Show loading state
+  
     showLoadingState();
     
     try {
-        // Fetch word data
+        
         const data = await fetchWordData(query);
         
-        // Save to state
+        
         state.currentWord = data;
         
-        // Add to history
+        
         addToHistory(query);
         
-        // Render results
+      
+        updateStats();
+        
+        
         renderWordData(data);
         
     } catch (error) {
-        // Show appropriate error
+        
         showErrorState(error.message);
     }
 }
 
-// ===================================
-// UTILITY FUNCTIONS
-// ===================================
+
 function playAudio(audioUrl) {
     const audio = new Audio(audioUrl);
     audio.play().catch(err => {
@@ -403,21 +680,18 @@ function clearSearchInput() {
     elements.searchInput.focus();
 }
 
-// ===================================
-// EVENT LISTENERS
-// ===================================
+
 function attachEventListeners() {
     // Search button click
     elements.searchBtn.addEventListener('click', searchWord);
     
-    // Enter key on search input
+   
     elements.searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             searchWord();
         }
     });
-    
-    // Show/hide clear button
+   
     elements.searchInput.addEventListener('input', () => {
         if (elements.searchInput.value.trim()) {
             elements.clearBtn.classList.add('show');
@@ -425,34 +699,63 @@ function attachEventListeners() {
             elements.clearBtn.classList.remove('show');
         }
     });
-    
-    // Clear button click
+   
     elements.clearBtn.addEventListener('click', clearSearchInput);
     
-    // Theme toggle
+    elements.voiceBtn.addEventListener('click', startVoiceSearch);
+    
+    
     elements.themeToggle.addEventListener('click', toggleTheme);
     
-    // History button
+   
     elements.historyBtn.addEventListener('click', toggleHistoryDropdown);
     
-    // Clear history button
+    
+    elements.favoritesBtn.addEventListener('click', toggleFavoritesDropdown);
+    
+    
     elements.clearHistoryBtn.addEventListener('click', clearHistory);
     
-    // Close history dropdown when clicking outside
+    
+    elements.clearFavoritesBtn.addEventListener('click', clearFavorites);
+    
+   
+    elements.favoriteStarBtn.addEventListener('click', () => {
+        if (state.currentWord) {
+            toggleFavorite(state.currentWord.word);
+        }
+    });
+    
+    
+    elements.wotdExplore.addEventListener('click', () => {
+        elements.searchInput.value = state.wordOfTheDay;
+        searchWord();
+    });
+    
+   
+    elements.revealScrambleBtn.addEventListener('click', revealScramble);
+    
+    
     document.addEventListener('click', (e) => {
         if (!elements.historyDropdown.contains(e.target) && 
             !elements.historyBtn.contains(e.target)) {
             closeHistoryDropdown();
         }
+        if (!elements.favoritesDropdown.contains(e.target) && 
+            !elements.favoritesBtn.contains(e.target)) {
+            closeFavoritesDropdown();
+        }
     });
     
-    // Prevent history dropdown from closing when clicking inside
+    
     elements.historyDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    elements.favoritesDropdown.addEventListener('click', (e) => {
         e.stopPropagation();
     });
 }
 
-// ===================================
-// START APPLICATION
-// ===================================
+
 document.addEventListener('DOMContentLoaded', init);
